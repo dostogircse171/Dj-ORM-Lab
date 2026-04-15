@@ -1,4 +1,4 @@
-# Django ORM Playground
+# DJ ORM Lab
 
 An interactive, browser-based playground for learning and experimenting with the Django ORM. Write queries against a realistic pre-seeded e-commerce database and see results instantly in a table or JSON view.
 
