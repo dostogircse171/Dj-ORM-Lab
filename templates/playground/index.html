@@ -1,0 +1,1210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Django ORM Playground</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/sql/sql.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ── Design tokens: The Architectural Monolith ── */
+    :root {
+      /* Surface hierarchy — tonal depth, no explicit borders */
+      --void:      #0e0e0e;   /* editor: surface-container-lowest */
+      --bg:        #1c1b1b;   /* main canvas: surface-container-low */
+      --surface:   #222121;   /* sidebar/panels: surface-container */
+      --surface-hi:#2a2a2a;   /* modals, active elements: surface-container-high */
+      --surface-ov:#313030;   /* hover states: surface-container-highest */
+
+      /* Django Green accent system */
+      --primary:   #7ddc7a;   /* Django Green — primary CTA */
+      --on-primary:#00390a;
+      --primary-dim:rgba(125,220,122,.12);
+      --primary-glow: linear-gradient(135deg, #7ddc7a 0%, #45a248 100%);
+
+      /* Secondary teal — relational data, explain bullets */
+      --accent2:   #4db6ac;
+
+      /* Semantic chips */
+      --success:   #7ddc7a;
+      --success-bg:rgba(125,220,122,.1);
+      --warn:      #ffb74d;
+      --warn-bg:   rgba(255,183,77,.09);
+      --error:     #ef5350;
+      --error-bg:  rgba(239,83,80,.09);
+      --info:      #64b5f6;
+
+      /* Text */
+      --text:      #e5e2e1;   /* on-surface — never pure white */
+      --muted:     #8a8784;   /* on-surface-variant */
+      --on-primary-container: #b8f5b6;
+
+      /* Ghost border — only for focus/accessibility, 20% opacity */
+      --ghost-border: rgba(125,220,122,.2);
+      --divider:   rgba(255,255,255,.06); /* tonal separator, not a hard line */
+
+      --header-h:  48px;
+      --font-ui:   "Inter", system-ui, sans-serif;
+      --font-mono: "JetBrains Mono", "Fira Code", monospace;
+      --font-display: "Space Grotesk", system-ui, sans-serif;
+    }
+
+    /* ── Light theme overrides ── */
+    body.light {
+      --void:      #f0f0ef;
+      --bg:        #f7f6f5;
+      --surface:   #eeeceb;
+      --surface-hi:#e5e3e1;
+      --surface-ov:#dcdad8;
+
+      --primary:   #2e7d32;
+      --on-primary:#ffffff;
+      --primary-dim:rgba(46,125,50,.1);
+      --primary-glow: linear-gradient(135deg, #43a047 0%, #2e7d32 100%);
+
+      --accent2:   #00796b;
+
+      --success:   #2e7d32;
+      --success-bg:rgba(46,125,50,.08);
+      --warn:      #e65100;
+      --warn-bg:   rgba(230,81,0,.07);
+      --error:     #c62828;
+      --error-bg:  rgba(198,40,40,.07);
+
+      --text:      #1a1918;
+      --muted:     #6b6864;
+      --ghost-border: rgba(46,125,50,.25);
+      --divider:   rgba(0,0,0,.07);
+    }
+
+    body.light ::-webkit-scrollbar-thumb { background: rgba(0,0,0,.15); }
+    body.light ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,.25); }
+
+    /* CodeMirror light override */
+    body.light .CodeMirror { background: var(--void) !important; color: #1a1918 !important; }
+    body.light .CodeMirror-gutters { background: var(--void) !important; }
+    body.light .CodeMirror-linenumber { color: #b0aeac !important; }
+    body.light .CodeMirror-activeline-background { background: rgba(0,0,0,.03) !important; }
+    body.light .CodeMirror-selected { background: rgba(46,125,50,.15) !important; }
+
+    /* Light JSON colours */
+    body.light .json-key { color: #1565c0; }
+    body.light .json-str { color: #2e7d32; }
+    body.light .json-num { color: #e65100; }
+    body.light .json-bool { color: #c62828; }
+
+    /* Light SQL code block */
+    body.light .sql-code { color: #1b5e20; }
+    body.light .n1-fix-code { color: #1b5e20; }
+
+    /* ── Base ── */
+    body { font-family: var(--font-ui); background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; font-size: 0.875rem; -webkit-font-smoothing: antialiased; transition: background .2s, color .2s; }
+
+    /* ── Scrollbars — minimal ── */
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 2px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,.18); }
+
+    /* ── Header ── */
+    header {
+      height: var(--header-h);
+      background: var(--surface);
+      box-shadow: 0 1px 0 var(--divider);
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      padding: 0 16px;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    .header-left  { display: flex; align-items: center; gap: 8px; }
+    .header-center { display: flex; align-items: center; justify-content: center; gap: 8px; }
+    .header-right { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+    .logo { font-family: var(--font-display); font-size: 1rem; font-weight: 700; color: var(--text); letter-spacing: -.01em; white-space: nowrap; }
+    .logo span { color: var(--primary); }
+    .badge {
+      font-family: var(--font-ui); font-size: .6rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+      background: var(--surface-hi); color: var(--muted); padding: 2px 8px; border-radius: 4px;
+    }
+    .badge.sqlite { color: var(--accent2); }
+    .header-btn {
+      background: transparent;
+      outline: 1px solid var(--divider);
+      outline-offset: 0;
+      color: var(--muted); padding: 4px 11px; border-radius: 5px; font-size: .72rem; font-family: var(--font-ui); font-weight: 500;
+      cursor: pointer; transition: color .15s, outline-color .15s, background .15s;
+      display: flex; align-items: center; gap: 5px; border: none;
+    }
+    .header-btn:hover { outline-color: var(--primary); color: var(--primary); background: var(--primary-dim); }
+    .header-btn.compare-active { outline-color: var(--accent2); color: var(--accent2); background: rgba(77,182,172,.1); }
+    .kbd { font-family: var(--font-mono); font-size: .66rem; color: var(--muted); background: var(--surface-hi); padding: 3px 8px; border-radius: 4px; }
+
+    /* ── Footer ── */
+    footer {
+      height: 30px; flex-shrink: 0;
+      background: var(--surface);
+      box-shadow: 0 -1px 0 var(--divider);
+      display: flex; align-items: center; justify-content: center;
+      gap: 6px;
+      font-size: .62rem; color: var(--muted); font-family: var(--font-ui);
+    }
+    footer a { color: var(--muted); text-decoration: none; transition: color .15s; }
+    footer a:hover { color: var(--primary); }
+    footer .footer-sep { opacity: .35; }
+    footer .footer-heart { color: var(--primary); font-size: .7rem; }
+
+    /* ── Layout ── */
+    .layout { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── Sidebar — tonal, no border line ── */
+    .sidebar {
+      width: 474px; flex-shrink: 0;
+      background: var(--surface);
+      box-shadow: 1px 0 0 var(--divider);  /* ghost line via shadow, not border */
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    .sidebar-tabs { display: flex; box-shadow: 0 1px 0 var(--divider); flex-shrink: 0; background: var(--surface); }
+    .sidebar-tab {
+      flex: 1; padding: 8px 0; font-size: .62rem; font-weight: 600; text-align: center;
+      cursor: pointer; text-transform: uppercase; letter-spacing: .07em; color: var(--muted);
+      border-bottom: 2px solid transparent; transition: color .15s; border: none; background: transparent;
+    }
+    .sidebar-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+    .sidebar-panel { flex: 1; overflow-y: auto; display: none; }
+    .sidebar-panel.active { display: block; }
+
+    /* Schema */
+    .schema-model { }
+    .schema-model-header {
+      display: flex; align-items: center; gap: 6px; padding: 7px 14px;
+      font-size: .76rem; font-weight: 600; color: var(--accent2);
+      user-select: none; cursor: pointer; transition: background .12s;
+    }
+    .schema-model-header:hover { background: var(--surface-ov); }
+    .schema-model.open .schema-model-header { background: rgba(77,182,172,.06); }
+    .schema-model-header .arrow {
+      width: 12px; height: 12px; flex-shrink: 0;
+      display: inline-block;
+      border-right: 1.5px solid var(--muted);
+      border-bottom: 1.5px solid var(--muted);
+      transform: rotate(-45deg);
+      transition: transform .15s, border-color .15s;
+      margin-top: 1px;
+    }
+    .schema-model-header:hover .arrow { border-color: var(--accent2); }
+    .schema-model.open .schema-model-header .arrow { border-color: var(--accent2); }
+    .schema-model-header .row-count {
+      margin-left: auto; font-family: var(--font-display); font-size: .65rem;
+      color: var(--muted); font-weight: 500; background: var(--surface-hi);
+      padding: 1px 6px; border-radius: 3px;
+    }
+    .schema-model.open .arrow { transform: rotate(45deg); }
+    .schema-fields { display: none; padding: 0 14px 8px 28px; background: rgba(0,0,0,.12); }
+    .schema-model.open .schema-fields { display: block; }
+    .schema-field { display: flex; justify-content: space-between; align-items: center; padding: 3px 0; font-size: .7rem; }
+    .schema-field + .schema-field { box-shadow: 0 -1px 0 var(--divider); }
+    .schema-field .field-rel { font-size: .58rem; color: var(--primary); margin-left: 4px; opacity: .75; }
+    .field-name { color: var(--text); font-family: var(--font-mono); font-size: .68rem; }
+    .field-type { color: var(--muted); font-size: .64rem; font-family: var(--font-mono); }
+    .schema-preview-btn {
+      display: block; width: calc(100% - 0px); margin: 2px 0 8px;
+      padding: 4px 0; font-size: .64rem; font-weight: 500; letter-spacing: .04em;
+      background: var(--primary-dim); border: none; border-radius: 4px;
+      color: var(--primary); cursor: pointer; text-align: center; transition: background .15s;
+    }
+    .schema-preview-btn:hover { background: rgba(125,220,122,.2); }
+
+    /* Data panel */
+    .data-panel-header { padding: 8px 12px 6px; box-shadow: 0 1px 0 var(--divider); }
+    .data-model-select {
+      width: 100%; background: var(--surface-hi); border: none;
+      outline: 1px solid transparent; color: var(--text); border-radius: 5px;
+      padding: 5px 8px; font-size: .72rem; font-family: var(--font-ui);
+      transition: outline-color .15s;
+    }
+    .data-model-select:focus { outline-color: var(--ghost-border); }
+    .data-table-wrap { overflow: auto; }
+    .data-table-wrap table { width: 100%; border-collapse: collapse; font-size: .67rem; font-family: var(--font-mono); }
+    .data-table-wrap th {
+      position: sticky; top: 0; background: var(--surface-hi); color: var(--accent2);
+      padding: 5px 10px; text-align: left; font-size: .6rem; text-transform: uppercase;
+      letter-spacing: .06em; box-shadow: 0 1px 0 var(--divider);
+    }
+    .data-table-wrap td { padding: 4px 10px; color: var(--text); white-space: nowrap; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+    .data-table-wrap tr:nth-child(even) td { background: rgba(255,255,255,.015); }
+    .data-table-wrap tr:hover td { background: var(--surface-ov); }
+    .data-row-count { font-family: var(--font-display); font-size: .64rem; color: var(--muted); padding: 6px 12px 2px; }
+    .data-empty { padding: 32px 14px; text-align: center; color: var(--muted); font-size: .78rem; line-height: 1.6; }
+
+    /* History */
+    .history-empty { padding: 32px 14px; text-align: center; color: var(--muted); font-size: .78rem; line-height: 1.6; }
+    .history-item { padding: 9px 14px; cursor: pointer; transition: background .1s; }
+    .history-item:hover { background: var(--surface-ov); }
+    .history-item + .history-item { box-shadow: 0 -1px 0 var(--divider); }
+    .history-item-code { font-family: var(--font-mono); font-size: .68rem; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 190px; }
+    .history-item-meta { display: flex; justify-content: space-between; margin-top: 3px; font-size: .64rem; color: var(--muted); }
+    .history-item-status.ok { color: var(--success); }
+    .history-item-status.error { color: var(--error); }
+    .history-item-status.timeout { color: var(--warn); }
+    .history-clear-btn {
+      width: 100%; padding: 9px; font-size: .7rem; font-family: var(--font-ui);
+      background: transparent; border: none; box-shadow: 0 -1px 0 var(--divider);
+      color: var(--muted); cursor: pointer; transition: color .15s;
+    }
+    .history-clear-btn:hover { color: var(--error); }
+
+    /* ── Center editor area ── */
+    .center { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; background: var(--void); }
+    .examples-bar {
+      background: var(--surface); box-shadow: 0 1px 0 var(--divider);
+      padding: 5px 14px; display: flex; align-items: center; gap: 6px;
+      overflow-x: auto; flex-shrink: 0;
+    }
+    .examples-label { font-size: .64rem; color: var(--muted); white-space: nowrap; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
+    .example-btn {
+      background: var(--surface-hi); border: none;
+      outline: 1px solid transparent;
+      color: var(--muted); font-size: .68rem; font-family: var(--font-ui);
+      padding: 3px 10px; border-radius: 4px; cursor: pointer; white-space: nowrap;
+      transition: color .15s, background .15s, outline-color .15s;
+    }
+    .example-btn:hover { background: var(--surface-ov); color: var(--text); outline-color: var(--ghost-border); }
+
+    /* Editors */
+    .editors-wrap { flex: 1; display: flex; overflow: hidden; }
+    .editor-pane { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+    .editor-pane + .editor-pane { box-shadow: -1px 0 0 var(--divider); }
+    .editor-toolbar {
+      display: flex; align-items: center; padding: 5px 14px; gap: 8px;
+      background: var(--surface); box-shadow: 0 1px 0 var(--divider); flex-shrink: 0;
+    }
+    .file-label { font-family: var(--font-mono); font-size: .7rem; color: var(--muted); }
+    .editor-toolbar .spacer { flex: 1; }
+    .run-btn {
+      background: var(--primary-glow); color: var(--on-primary);
+      border: none; padding: 5px 18px; border-radius: 5px;
+      font-size: .78rem; font-weight: 700; font-family: var(--font-ui);
+      cursor: pointer; display: flex; align-items: center; gap: 6px;
+      transition: opacity .15s, box-shadow .15s;
+      box-shadow: 0 2px 12px rgba(125,220,122,.2);
+    }
+    .run-btn:hover { opacity: .9; box-shadow: 0 4px 20px rgba(125,220,122,.35); }
+    .run-btn:disabled { opacity: .35; cursor: not-allowed; box-shadow: none; }
+    .icon-btn {
+      background: transparent; border: none;
+      outline: 1px solid var(--divider); color: var(--muted);
+      padding: 4px 10px; border-radius: 5px; font-size: .76rem; font-family: var(--font-ui);
+      cursor: pointer; transition: color .15s, outline-color .15s;
+    }
+    .icon-btn:hover { outline-color: rgba(255,255,255,.2); color: var(--text); }
+
+    /* CodeMirror override — editor sits in the void */
+    .CodeMirror { flex: 1; height: 100%; font-family: var(--font-mono); font-size: 13.5px; line-height: 1.7; background: var(--void) !important; }
+    .CodeMirror-scroll { height: 100%; }
+    .CodeMirror-gutters { background: var(--void) !important; box-shadow: 1px 0 0 var(--divider) !important; border: none !important; }
+    .CodeMirror-linenumber { color: #3d3c3c !important; }
+    .CodeMirror-activeline-background { background: rgba(255,255,255,.025) !important; }
+
+    /* ── Output panel ── */
+    .output-panel {
+      width: 440px; flex-shrink: 0; background: var(--surface);
+      box-shadow: -1px 0 0 var(--divider);
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    .output-header {
+      display: flex; align-items: center; padding: 7px 14px;
+      box-shadow: 0 1px 0 var(--divider); gap: 8px; flex-shrink: 0;
+      background: var(--surface-hi);
+    }
+    .output-title { font-family: var(--font-display); font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+    .output-header .spacer { flex: 1; }
+    .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); transition: background .2s; flex-shrink: 0; }
+    .status-dot.ok { background: var(--success); box-shadow: 0 0 6px rgba(125,220,122,.5); }
+    .status-dot.err { background: var(--error); box-shadow: 0 0 6px rgba(239,83,80,.5); }
+    .status-dot.loading { background: var(--primary); animation: pulse 1s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1}50%{opacity:.35} }
+    .row-count { font-family: var(--font-display); font-size: .68rem; color: var(--muted); }
+    .duration-badge {
+      font-family: var(--font-display); font-size: .62rem; color: var(--accent2);
+      background: var(--surface-hi); padding: 1px 7px; border-radius: 4px;
+    }
+
+    .output-tabs { display: flex; box-shadow: 0 1px 0 var(--divider); flex-shrink: 0; overflow-x: auto; background: var(--surface); }
+    .output-tab {
+      padding: 7px 14px; font-size: .7rem; font-family: var(--font-ui); font-weight: 500;
+      cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent;
+      white-space: nowrap; transition: color .15s; border: none; background: transparent;
+    }
+    .output-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+    .output-tab .tab-badge {
+      display: inline-block; background: var(--surface-hi); color: var(--muted);
+      font-size: .56rem; padding: 1px 5px; border-radius: 3px; margin-left: 4px; vertical-align: middle;
+    }
+    .output-tab.active .tab-badge { background: var(--primary-dim); color: var(--primary); }
+    .output-tab .tab-badge.warn { background: var(--warn-bg); color: var(--warn); }
+
+    .output-body { flex: 1; overflow-y: auto; overflow-x: auto; background: var(--surface); }
+
+    /* stdout banner */
+    .stdout-banner { background: rgba(255,183,77,.05); box-shadow: 0 1px 0 rgba(255,183,77,.15); padding: 8px 14px; }
+    .stdout-label { font-size: .62rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--warn); margin-bottom: 4px; font-family: var(--font-ui); }
+    .stdout-content { font-family: var(--font-mono); font-size: .7rem; color: var(--warn); white-space: pre-wrap; line-height: 1.5; opacity: .85; }
+
+    /* Table */
+    .result-table { width: 100%; border-collapse: collapse; font-size: .73rem; }
+    .result-table th {
+      position: sticky; top: 0; background: var(--surface-hi);
+      color: var(--accent2); padding: 7px 12px; text-align: left; font-weight: 600;
+      box-shadow: 0 1px 0 var(--divider); white-space: nowrap;
+      font-family: var(--font-mono); font-size: .65rem; text-transform: uppercase; letter-spacing: .04em;
+    }
+    .result-table td { padding: 6px 12px; color: var(--text); vertical-align: top; max-width: 220px; word-break: break-word; font-family: var(--font-mono); font-size: .7rem; }
+    .result-table tr:nth-child(even) td { background: rgba(255,255,255,.015); }
+    .result-table tr:hover td { background: var(--surface-ov); }
+    .null-val { color: var(--muted); font-style: italic; }
+    .bool-true { color: var(--success); }
+    .bool-false { color: var(--error); }
+
+    /* JSON */
+    .json-view { padding: 12px 14px; font-family: var(--font-mono); font-size: .7rem; line-height: 1.65; white-space: pre-wrap; word-break: break-all; }
+    .json-key { color: #82aaff; } .json-str { color: #c3e88d; } .json-num { color: #f78c6c; } .json-bool { color: #ff5370; } .json-null { color: var(--muted); }
+
+    /* SQL tab */
+    .sql-summary {
+      padding: 8px 14px; box-shadow: 0 1px 0 var(--divider);
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+      background: var(--surface-hi);
+    }
+    .sql-stat { font-family: var(--font-display); font-size: .7rem; color: var(--muted); }
+    .sql-stat strong { color: var(--text); font-weight: 600; }
+    .sql-item { padding: 10px 14px; }
+    .sql-item + .sql-item { box-shadow: 0 -1px 0 var(--divider); }
+    .sql-item-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .sql-num {
+      font-family: var(--font-display); font-size: .62rem; color: var(--muted);
+      background: var(--surface-hi); padding: 1px 7px; border-radius: 3px;
+    }
+    .sql-time { font-family: var(--font-display); font-size: .65rem; color: var(--accent2); font-weight: 500; }
+    .sql-code {
+      font-family: var(--font-mono); font-size: .68rem; color: #c3e88d;
+      white-space: pre-wrap; word-break: break-all; line-height: 1.55;
+      background: var(--void); padding: 8px 10px; border-radius: 5px;
+    }
+
+    /* N+1 warning */
+    .n1-banner { margin: 10px 14px; background: var(--warn-bg); border-radius: 6px; padding: 10px 12px; box-shadow: inset 0 0 0 1px rgba(255,183,77,.2); }
+    .n1-title { font-size: .72rem; font-weight: 700; color: var(--warn); margin-bottom: 4px; display: flex; align-items: center; gap: 6px; font-family: var(--font-ui); }
+    .n1-body { font-size: .7rem; color: var(--text); line-height: 1.55; }
+    .n1-fix { margin-top: 10px; box-shadow: 0 -1px 0 rgba(255,183,77,.2); padding-top: 8px; }
+    .n1-fix-label { font-size: .62rem; font-weight: 700; color: var(--primary); margin-bottom: 5px; text-transform: uppercase; letter-spacing: .06em; font-family: var(--font-ui); }
+    .n1-fix-code { font-family: var(--font-mono); font-size: .7rem; background: var(--void); border-radius: 5px; padding: 8px 10px; white-space: pre-wrap; word-break: break-all; color: #c3e88d; line-height: 1.55; margin-bottom: 7px; }
+    .n1-fix-copy { font-size: .66rem; padding: 4px 12px; background: var(--primary-glow); color: var(--on-primary); border: none; border-radius: 4px; cursor: pointer; font-weight: 700; font-family: var(--font-ui); transition: opacity .15s; }
+    .n1-fix-copy:hover { opacity: .85; }
+    .n1-query { font-family: var(--font-mono); font-size: .66rem; color: var(--muted); margin-top: 6px; white-space: pre-wrap; word-break: break-all; opacity: .7; }
+
+    /* Explain tab */
+    .explain-item { display: flex; gap: 8px; padding: 9px 14px; font-size: .74rem; line-height: 1.55; }
+    .explain-item + .explain-item { box-shadow: 0 -1px 0 var(--divider); }
+    .explain-item .bullet { color: var(--primary); font-size: .85rem; flex-shrink: 0; margin-top: 1px; }
+    .explain-item.warn-item { background: var(--warn-bg); }
+    .explain-item.warn-item .bullet { color: var(--warn); }
+    .explain-empty { padding: 32px; text-align: center; color: var(--muted); font-size: .8rem; line-height: 1.6; }
+
+    /* Error */
+    .error-view { padding: 14px; color: var(--error); font-family: var(--font-mono); font-size: .7rem; line-height: 1.65; white-space: pre-wrap; background: var(--error-bg); }
+    .error-label { font-family: var(--font-display); font-weight: 700; font-size: .76rem; margin-bottom: 6px; display: block; }
+
+    /* Compare mode */
+    .compare-label {
+      font-family: var(--font-display); font-size: .62rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .08em; padding: 5px 14px;
+      background: var(--surface-hi); box-shadow: 0 1px 0 var(--divider); color: var(--accent2);
+    }
+    .compare-diff { padding: 10px 14px; font-size: .72rem; font-family: var(--font-display); }
+    .diff-better { color: var(--success); } .diff-worse { color: var(--error); } .diff-same { color: var(--muted); }
+
+    /* Empty state */
+    .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--muted); gap: 10px; font-size: .8rem; }
+    .empty-state .icon { font-size: 2.2rem; opacity: .2; }
+
+    /* Resize handle — tactile, not structural */
+    .resize-handle { width: 3px; cursor: col-resize; background: transparent; transition: background .15s; flex-shrink: 0; }
+    .resize-handle:hover, .resize-handle:active { background: var(--primary); opacity: .5; }
+
+    /* ── Shortcuts modal — glassmorphism overlay ── */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(14,14,14,.7);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      display: none; align-items: center; justify-content: center; z-index: 100;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--surface-hi);
+      box-shadow: 0 20px 40px rgba(0,0,0,.5), inset 0 0 0 1px var(--divider);
+      border-radius: 10px; width: 480px; max-width: 95vw; max-height: 80vh; overflow-y: auto;
+    }
+    .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; box-shadow: 0 1px 0 var(--divider); }
+    .modal-title { font-family: var(--font-display); font-size: .95rem; font-weight: 700; }
+    .modal-close { background: transparent; border: none; color: var(--muted); font-size: 1.2rem; cursor: pointer; line-height: 1; transition: color .15s; }
+    .modal-close:hover { color: var(--text); }
+    .shortcut-section { padding: 10px 18px 4px; font-size: .64rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-family: var(--font-ui); }
+    .shortcut-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 18px; }
+    .shortcut-row + .shortcut-row { box-shadow: 0 -1px 0 var(--divider); }
+    .shortcut-desc { font-size: .78rem; color: var(--text); }
+    .shortcut-keys { display: flex; gap: 4px; }
+    .shortcut-key {
+      background: var(--void); padding: 2px 8px; border-radius: 4px;
+      font-size: .68rem; color: var(--muted); font-family: var(--font-mono);
+      box-shadow: inset 0 0 0 1px var(--divider);
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Shortcuts modal ── -->
+<div class="modal-overlay" id="shortcutsModal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Keyboard Shortcuts</span>
+      <button class="modal-close" id="closeModal">&times;</button>
+    </div>
+    <div class="shortcut-section">Execution</div>
+    <div class="shortcut-row"><span class="shortcut-desc">Run query</span><div class="shortcut-keys"><span class="shortcut-key">Ctrl</span><span class="shortcut-key">Enter</span></div></div>
+    <div class="shortcut-row"><span class="shortcut-desc">Run query (Mac)</span><div class="shortcut-keys"><span class="shortcut-key">⌘</span><span class="shortcut-key">Enter</span></div></div>
+    <div class="shortcut-section">Editor</div>
+    <div class="shortcut-row"><span class="shortcut-desc">Clear editor</span><div class="shortcut-keys"><span class="shortcut-key">Ctrl</span><span class="shortcut-key">L</span></div></div>
+    <div class="shortcut-row"><span class="shortcut-desc">Toggle compare mode</span><div class="shortcut-keys"><span class="shortcut-key">Ctrl</span><span class="shortcut-key">Shift</span><span class="shortcut-key">C</span></div></div>
+    <div class="shortcut-row"><span class="shortcut-desc">Indent (Tab)</span><div class="shortcut-keys"><span class="shortcut-key">Tab</span></div></div>
+    <div class="shortcut-section">Output tabs</div>
+    <div class="shortcut-row"><span class="shortcut-desc">Table view</span><div class="shortcut-keys"><span class="shortcut-key">Alt</span><span class="shortcut-key">1</span></div></div>
+    <div class="shortcut-row"><span class="shortcut-desc">JSON view</span><div class="shortcut-keys"><span class="shortcut-key">Alt</span><span class="shortcut-key">2</span></div></div>
+    <div class="shortcut-row"><span class="shortcut-desc">SQL view</span><div class="shortcut-keys"><span class="shortcut-key">Alt</span><span class="shortcut-key">3</span></div></div>
+    <div class="shortcut-row"><span class="shortcut-desc">Explain view</span><div class="shortcut-keys"><span class="shortcut-key">Alt</span><span class="shortcut-key">4</span></div></div>
+    <div class="shortcut-section">Navigation</div>
+    <div class="shortcut-row"><span class="shortcut-desc">Open shortcuts</span><div class="shortcut-keys"><span class="shortcut-key">?</span></div></div>
+    <div class="shortcut-row"><span class="shortcut-desc">Close modal</span><div class="shortcut-keys"><span class="shortcut-key">Esc</span></div></div>
+    <div class="shortcut-section">Playground notes</div>
+    <div class="shortcut-row"><span class="shortcut-desc">All writes (delete/update/create) roll back automatically</span><div class="shortcut-keys"></div></div>
+    <div class="shortcut-row"><span class="shortcut-desc">Wrap multi-line chains in result = ( ... )</span><div class="shortcut-keys"></div></div>
+    <div class="shortcut-row"><span class="shortcut-desc">Timeout: {{ timeout }}s per query</span><div class="shortcut-keys"></div></div>
+    <br>
+  </div>
+</div>
+
+<header>
+  <div class="header-left">
+    <button class="header-btn" id="compareToggle">
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M1 3h6v2H1zm8 0h6v2H9zM1 7h6v2H1zm8 0h6v2H9zM1 11h6v2H1zm8 0h6v2H9z"/></svg>
+      Compare
+    </button>
+  </div>
+  <div class="header-center">
+    <div class="logo">Query<span>Lab</span></div>
+    <div class="badge sqlite">SQLite · Django 5.2</div>
+  </div>
+  <div class="header-right">
+    <span class="kbd">Ctrl+Enter to run</span>
+    <button class="header-btn" id="themeToggle" title="Toggle light/dark theme">
+      <!-- sun icon (shown in dark mode) -->
+      <svg id="iconSun" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+        <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+      </svg>
+      <!-- moon icon (shown in light mode) -->
+      <svg id="iconMoon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+      </svg>
+    </button>
+    <button class="header-btn" id="shortcutsBtn">
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 11a1 1 0 1 1 0-2 1 1 0 0 1 0 2zm1-3.5V10H7V8.5c0-.28.22-.5.5-.5 1.1 0 1.5-.45 1.5-1s-.45-1-1.5-1C6.67 6 6.28 6.4 6.13 7H4.16C4.46 5.27 5.99 4 8 4c2.21 0 3.5 1.12 3.5 2.5 0 1.12-.76 2-2.5 2z"/></svg>
+      Shortcuts
+    </button>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+    <div class="sidebar-tabs">
+      <div class="sidebar-tab active" data-panel="schema">Schema</div>
+      <div class="sidebar-tab" data-panel="data">Data</div>
+      <div class="sidebar-tab" data-panel="history">History</div>
+    </div>
+    <div class="sidebar-panel active" id="panel-schema"><div id="schemaList"></div></div>
+    <div class="sidebar-panel" id="panel-data">
+      <div class="data-panel-header">
+        <select class="data-model-select" id="dataModelSelect"></select>
+      </div>
+      <div id="dataRowCount" class="data-row-count"></div>
+      <div class="data-table-wrap" id="dataTableWrap"><div class="data-empty">Select a model above or click "Preview" in the Schema tab.</div></div>
+    </div>
+    <div class="sidebar-panel" id="panel-history"><div id="historyList"></div></div>
+  </aside>
+
+  <div class="resize-handle" id="sidebarResizeHandle"></div>
+
+  <!-- ── Editor area ── -->
+  <main class="center">
+    <div class="examples-bar">
+      <span class="examples-label">Examples:</span>
+      {% for ex in examples %}
+      <button class="example-btn" data-index="{{ forloop.counter0 }}">{{ ex.label }}</button>
+      {% endfor %}
+    </div>
+
+    <div class="editors-wrap" id="editorsWrap">
+      <!-- Editor A (always shown) -->
+      <div class="editor-pane" id="paneA">
+        <div class="editor-toolbar">
+          <span class="file-label" id="labelA">query.py</span>
+          <div class="spacer"></div>
+          <button class="icon-btn" id="clearBtnA">Clear</button>
+          <button class="run-btn" id="runBtn">
+            <svg width="10" height="10" viewBox="0 0 12 12" fill="currentColor"><path d="M2 1l9 5-9 5V1z"/></svg>
+            Run
+          </button>
+        </div>
+        <textarea id="editorA"></textarea>
+      </div>
+
+      <!-- Editor B (compare mode only) -->
+      <div class="editor-pane" id="paneB" style="display:none">
+        <div class="editor-toolbar">
+          <span class="file-label">query_b.py</span>
+          <div class="spacer"></div>
+          <button class="icon-btn" id="clearBtnB">Clear</button>
+        </div>
+        <textarea id="editorB"></textarea>
+      </div>
+    </div>
+  </main>
+
+  <div class="resize-handle" id="resizeHandle"></div>
+
+  <!-- ── Output panel ── -->
+  <aside class="output-panel" id="outputPanel">
+    <div class="output-header">
+      <span class="output-title">Output</span>
+      <span class="row-count" id="rowCount"></span>
+      <span class="duration-badge" id="durationBadge" style="display:none"></span>
+      <div class="spacer"></div>
+      <div class="status-dot" id="statusDot"></div>
+    </div>
+    <div class="output-tabs" id="outputTabs">
+      <div class="output-tab active" data-tab="table">Table</div>
+      <div class="output-tab" data-tab="json">JSON</div>
+      <div class="output-tab" data-tab="sql" id="sqlTab">SQL</div>
+      <div class="output-tab" data-tab="explain" id="explainTab">Explain</div>
+    </div>
+    <div class="output-body" id="outputBody">
+      <div class="empty-state"><div class="icon">&#9654;</div><div>Run a query to see results</div></div>
+    </div>
+  </aside>
+
+</div>
+
+<script>
+const EXAMPLE_CODES = {{ examples_json|safe }};
+const QUERY_TIMEOUT = {{ timeout }};
+const HISTORY_KEY = "djorm_history";
+const MAX_HISTORY = 50;
+
+// ── CodeMirror ──
+const editorA = CodeMirror.fromTextArea(document.getElementById("editorA"), {
+  mode: "python", theme: "dracula", lineNumbers: true,
+  matchBrackets: true, autoCloseBrackets: true,
+  indentUnit: 4, tabSize: 4, indentWithTabs: false,
+  extraKeys: {
+    "Ctrl-Enter": runQuery, "Cmd-Enter": runQuery,
+    "Ctrl-L": () => { editorA.setValue(""); resetOutput(); },
+    "Ctrl-Shift-C": toggleCompare,
+    "Tab": cm => cm.replaceSelection("    "),
+  },
+});
+editorA.setSize("100%", "100%");
+editorA.setValue(
+  "# Write your Django ORM query here.\n" +
+  "# Wrap multi-line chains in parentheses:\n" +
+  "#   result = (\n" +
+  "#       Product.objects\n" +
+  "#       .filter(price__lt=50)\n" +
+  "#       .values('name', 'price')\n" +
+  "#   )\n" +
+  "# All writes roll back automatically.\n\n" +
+  "Customer.objects.all()"
+);
+
+const editorB = CodeMirror.fromTextArea(document.getElementById("editorB"), {
+  mode: "python", theme: "dracula", lineNumbers: true,
+  matchBrackets: true, autoCloseBrackets: true,
+  indentUnit: 4, tabSize: 4, indentWithTabs: false,
+  extraKeys: { "Tab": cm => cm.replaceSelection("    ") },
+});
+editorB.setSize("100%", "100%");
+editorB.setValue("# Query B — compare against Query A\nOrder.objects.select_related('customer').all()");
+
+// ── Compare mode ──
+let compareMode = false;
+
+function toggleCompare() {
+  compareMode = !compareMode;
+  document.getElementById("paneB").style.display = compareMode ? "flex" : "none";
+  document.getElementById("paneB").style.flexDirection = compareMode ? "column" : "";
+  document.getElementById("compareToggle").classList.toggle("compare-active", compareMode);
+  document.getElementById("labelA").textContent = compareMode ? "query_a.py" : "query.py";
+  editorA.refresh(); editorB.refresh();
+}
+
+document.getElementById("compareToggle").addEventListener("click", toggleCompare);
+
+// ── Schema ──
+const schemaData = {{ schema|safe }};
+const schemaList = document.getElementById("schemaList");
+
+function renderDataPanel(modelName) {
+  const m = schemaData.find(x => x.model === modelName);
+  if (!m) return;
+  document.getElementById("dataRowCount").textContent =
+    m.row_count != null ? `${m.row_count} rows in ${m.table}` : "";
+  const wrap = document.getElementById("dataTableWrap");
+  if (!m.preview_rows || !m.preview_rows.length) {
+    wrap.innerHTML = '<div class="data-empty">No data.</div>';
+    return;
+  }
+  const cols = m.preview_cols;
+  let html = '<table><thead><tr>' + cols.map(c => `<th>${escapeHtml(c)}</th>`).join("") + '</tr></thead><tbody>';
+  m.preview_rows.forEach(row => {
+    html += '<tr>' + cols.map(c => {
+      const v = row[c];
+      if (v === null || v === undefined) return '<td><span class="null-val">null</span></td>';
+      return `<td title="${escapeHtml(String(v))}">${escapeHtml(String(v))}</td>`;
+    }).join("") + '</tr>';
+  });
+  html += '</tbody></table>';
+  if (m.row_count > m.preview_rows.length) {
+    html += `<div style="padding:5px 10px;font-size:.65rem;color:var(--muted)">Showing ${m.preview_rows.length} of ${m.row_count} rows</div>`;
+  }
+  wrap.innerHTML = html;
+  // Switch to Data panel
+  document.querySelectorAll(".sidebar-tab").forEach(t => t.classList.toggle("active", t.dataset.panel === "data"));
+  document.querySelectorAll(".sidebar-panel").forEach(p => p.classList.toggle("active", p.id === "panel-data"));
+  document.getElementById("dataModelSelect").value = modelName;
+}
+
+// Populate model select
+const dataModelSelect = document.getElementById("dataModelSelect");
+schemaData.forEach(m => {
+  const opt = document.createElement("option");
+  opt.value = m.model;
+  opt.textContent = `${m.model} (${m.row_count ?? "?"} rows)`;
+  dataModelSelect.appendChild(opt);
+});
+dataModelSelect.addEventListener("change", () => renderDataPanel(dataModelSelect.value));
+
+schemaData.forEach(model => {
+  const div = document.createElement("div");
+  div.className = "schema-model";
+  const relIcon = f => f.related_model ? `<span class="field-rel">→ ${f.related_model}</span>` : "";
+  div.innerHTML = `
+    <div class="schema-model-header">
+      <span class="arrow"></span>
+      <span>${model.model}</span>
+      <span class="row-count">${model.row_count ?? ""}</span>
+    </div>
+    <div class="schema-fields">
+      ${model.fields.map(f => `<div class="schema-field"><span class="field-name">${f.name}${relIcon(f)}</span><span class="field-type">${f.type}</span></div>`).join("")}
+      <button class="schema-preview-btn" data-model="${model.model}">Preview data &#8594;</button>
+    </div>`;
+  div.querySelector(".schema-model-header").addEventListener("click", () => div.classList.toggle("open"));
+  div.querySelector(".schema-preview-btn").addEventListener("click", e => {
+    e.stopPropagation();
+    renderDataPanel(model.model);
+  });
+  schemaList.appendChild(div);
+});
+
+// ── Sidebar tabs ──
+document.querySelectorAll(".sidebar-tab").forEach(tab => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".sidebar-tab").forEach(t => t.classList.remove("active"));
+    document.querySelectorAll(".sidebar-panel").forEach(p => p.classList.remove("active"));
+    tab.classList.add("active");
+    document.getElementById("panel-" + tab.dataset.panel).classList.add("active");
+    if (tab.dataset.panel === "history") renderHistory();
+  });
+});
+
+// ── Examples ──
+document.querySelectorAll(".example-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    editorA.setValue(EXAMPLE_CODES[parseInt(btn.dataset.index, 10)]);
+    editorA.focus();
+  });
+});
+
+// ── Clear buttons ──
+document.getElementById("clearBtnA").addEventListener("click", () => { editorA.setValue(""); editorA.focus(); resetOutput(); });
+document.getElementById("clearBtnB").addEventListener("click", () => { editorB.setValue(""); editorB.focus(); });
+
+// ── Output tab switching ──
+let currentData = null;
+let activeTab = "table";
+
+document.querySelectorAll(".output-tab").forEach(tab => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".output-tab").forEach(t => t.classList.remove("active"));
+    tab.classList.add("active");
+    activeTab = tab.dataset.tab;
+    if (currentData) renderOutput(currentData);
+  });
+});
+
+// Alt+1/2/3/4 to switch tabs
+document.addEventListener("keydown", e => {
+  if (e.altKey && !e.ctrlKey && !e.metaKey) {
+    const tabMap = {"1":"table","2":"json","3":"sql","4":"explain"};
+    if (tabMap[e.key]) {
+      e.preventDefault();
+      document.querySelectorAll(".output-tab").forEach(t => {
+        t.classList.toggle("active", t.dataset.tab === tabMap[e.key]);
+      });
+      activeTab = tabMap[e.key];
+      if (currentData) renderOutput(currentData);
+    }
+  }
+  // ? opens shortcuts
+  if (e.key === "?" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    const active = document.activeElement;
+    if (active && active.classList.contains("CodeMirror-code")) return;
+    document.getElementById("shortcutsModal").classList.add("open");
+  }
+  if (e.key === "Escape") {
+    document.getElementById("shortcutsModal").classList.remove("open");
+  }
+});
+
+// ── Shortcuts modal ──
+document.getElementById("shortcutsBtn").addEventListener("click", () => document.getElementById("shortcutsModal").classList.add("open"));
+document.getElementById("closeModal").addEventListener("click", () => document.getElementById("shortcutsModal").classList.remove("open"));
+document.getElementById("shortcutsModal").addEventListener("click", e => { if (e.target === e.currentTarget) e.currentTarget.classList.remove("open"); });
+
+// ── History ──
+function loadHistory() { try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"); } catch { return []; } }
+
+function saveToHistory(code, status, rowCount, sqlCount) {
+  const history = loadHistory().filter(h => h.code !== code);
+  history.unshift({ code, status, rowCount, sqlCount, ts: Date.now() });
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(0, MAX_HISTORY)));
+}
+
+function renderHistory() {
+  const list = document.getElementById("historyList");
+  const history = loadHistory();
+  if (!history.length) { list.innerHTML = '<div class="history-empty">No queries yet.</div>'; return; }
+  list.innerHTML = "";
+  history.forEach(item => {
+    const div = document.createElement("div");
+    div.className = "history-item";
+    const firstLine = item.code.split("\n").find(l => l.trim() && !l.trim().startsWith("#")) || item.code;
+    div.innerHTML = `<div class="history-item-code" title="${escapeHtml(item.code)}">${escapeHtml(firstLine)}</div>
+      <div class="history-item-meta">
+        <span class="history-item-status ${item.status}">${item.status}${item.rowCount ? " · " + item.rowCount : ""}${item.sqlCount ? " · " + item.sqlCount + " sql" : ""}</span>
+        <span>${timeAgo(item.ts)}</span>
+      </div>`;
+    div.addEventListener("click", () => {
+      editorA.setValue(item.code);
+      editorA.focus();
+      document.querySelectorAll(".sidebar-tab").forEach(t => t.classList.toggle("active", t.dataset.panel === "schema"));
+      document.querySelectorAll(".sidebar-panel").forEach(p => p.classList.toggle("active", p.id === "panel-schema"));
+    });
+    list.appendChild(div);
+  });
+  const cb = document.createElement("button");
+  cb.className = "history-clear-btn"; cb.textContent = "Clear history";
+  cb.addEventListener("click", () => { localStorage.removeItem(HISTORY_KEY); renderHistory(); });
+  list.appendChild(cb);
+}
+
+function timeAgo(ts) {
+  const d = Math.floor((Date.now() - ts) / 1000);
+  if (d < 60) return d + "s ago";
+  if (d < 3600) return Math.floor(d/60) + "m ago";
+  if (d < 86400) return Math.floor(d/3600) + "h ago";
+  return Math.floor(d/86400) + "d ago";
+}
+
+// ── Run ──
+const runBtn = document.getElementById("runBtn");
+const statusDot = document.getElementById("statusDot");
+const rowCountEl = document.getElementById("rowCount");
+const durationBadge = document.getElementById("durationBadge");
+const outputBody = document.getElementById("outputBody");
+
+function getCookie(n) { const m = document.cookie.match(new RegExp("(^|;)\\s*" + n + "\\s*=\\s*([^;]+)")); return m ? m.pop() : ""; }
+
+async function runQuery() {
+  const code = editorA.getValue().trim();
+  if (!code) return;
+  runBtn.disabled = true;
+  statusDot.className = "status-dot loading";
+  rowCountEl.textContent = "running…";
+  durationBadge.style.display = "none";
+  outputBody.innerHTML = '<div class="empty-state"><div class="icon">&#8987;</div><div>Executing…</div></div>';
+  currentData = null;
+
+  const body = compareMode
+    ? { code, mode: "compare", code_b: editorB.getValue().trim() }
+    : { code, mode: "single" };
+
+  try {
+    const resp = await fetch("/execute/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": getCookie("csrftoken") },
+      body: JSON.stringify(body),
+    });
+    const data = await resp.json();
+    currentData = data;
+
+    if (data.mode === "compare") {
+      renderCompare(data);
+    } else if (data.error) {
+      statusDot.className = "status-dot err";
+      rowCountEl.textContent = "";
+      renderError(data);
+      saveToHistory(code, "error", null, 0);
+    } else {
+      statusDot.className = "status-dot ok";
+      updateMeta(data);
+      renderOutput(data);
+      const rc = Array.isArray(data.result) ? data.result.length + " rows" : "ok";
+      saveToHistory(code, "ok", rc, data.sql?.length || 0);
+    }
+
+    // Update SQL tab badge
+    if (!data.mode) {
+      const sqlCount = data.sql?.length || 0;
+      document.getElementById("sqlTab").innerHTML = `SQL${sqlCount ? `<span class="tab-badge${sqlCount >= 3 ? ' warn' : ''}">${sqlCount}</span>` : ""}`;
+      // Update explain tab badge if N+1
+      const hasN1 = data.n1_warning;
+      document.getElementById("explainTab").innerHTML = `Explain${hasN1 ? '<span class="tab-badge warn">N+1</span>' : ""}`;
+    }
+  } catch(e) {
+    statusDot.className = "status-dot err";
+    rowCountEl.textContent = "";
+    outputBody.innerHTML = `<div class="error-view"><span class="error-label">Network Error</span>${escapeHtml(String(e))}</div>`;
+    saveToHistory(code, "error", null, 0);
+  } finally {
+    runBtn.disabled = false;
+  }
+}
+
+runBtn.addEventListener("click", runQuery);
+
+function updateMeta(data) {
+  const rc = Array.isArray(data.result) ? `${data.result.length} row${data.result.length !== 1 ? "s" : ""}` : "";
+  rowCountEl.textContent = rc;
+  if (data.duration_ms) {
+    durationBadge.textContent = data.duration_ms + "ms";
+    durationBadge.style.display = "";
+  }
+}
+
+function resetOutput() {
+  currentData = null;
+  rowCountEl.textContent = ""; durationBadge.style.display = "none";
+  statusDot.className = "status-dot";
+  outputBody.innerHTML = '<div class="empty-state"><div class="icon">&#9654;</div><div>Run a query to see results</div></div>';
+  document.getElementById("sqlTab").textContent = "SQL";
+  document.getElementById("explainTab").textContent = "Explain";
+}
+
+// ── Render dispatch ──
+function renderOutput(data) {
+  if (!data) return;
+  if (activeTab === "table")   renderTable(data.result, data.stdout);
+  else if (activeTab === "json")    renderJSON(data.result, data.stdout);
+  else if (activeTab === "sql")     renderSQL(data.sql || [], data.n1_warning);
+  else if (activeTab === "explain") renderExplain(data.explain || [], data.n1_warning);
+}
+
+function cleanError(raw) {
+  if (!raw) return "";
+  const lines = raw.trim().split("\n");
+  // Timeout — already clean
+  if (raw.includes("timed out")) return raw.trim();
+  // SyntaxError — first line is enough
+  if (raw.includes("SyntaxError")) {
+    const syn = lines.find(l => l.trim().startsWith("SyntaxError"));
+    return syn ? syn.trim() : lines[lines.length - 1].trim();
+  }
+  // For tracebacks: last non-empty line is the actual exception message.
+  // Optionally include the line just before it if it starts with "File" for location.
+  const meaningful = lines.filter(l => l.trim());
+  return meaningful[meaningful.length - 1].trim();
+}
+
+function renderError(data) {
+  let html = data.stdout ? stdoutBanner(data.stdout) : "";
+  const isTimeout = (data.error || "").includes("timed out");
+  const msg = isTimeout ? data.error.trim() : cleanError(data.error);
+  html += `<div class="error-view"><span class="error-label">${isTimeout ? "⏱ Timeout" : "✖ Error"}</span>${escapeHtml(msg)}</div>`;
+  outputBody.innerHTML = html;
+}
+
+// ── Table ──
+function renderTable(result, stdout) {
+  let rows = Array.isArray(result) ? result
+    : (result !== null && typeof result === "object") ? [result]
+    : [{ value: result }];
+  let html = stdout ? stdoutBanner(stdout) : "";
+  if (!rows.length) {
+    rowCountEl.textContent = "0 rows";
+    outputBody.innerHTML = html + '<div class="empty-state"><div class="icon">&#128203;</div><div>0 rows returned</div></div>';
+    return;
+  }
+  const keys = [];
+  rows.forEach(r => { if (r && typeof r === "object") Object.keys(r).forEach(k => { if (!keys.includes(k)) keys.push(k); }); });
+  rowCountEl.textContent = `${rows.length} row${rows.length !== 1 ? "s" : ""}`;
+  html += '<table class="result-table"><thead><tr>' + (keys.length ? keys : ["value"]).map(k => `<th>${escapeHtml(k)}</th>`).join("") + "</tr></thead><tbody>";
+  rows.forEach(row => {
+    html += "<tr>" + (keys.length ? keys.map(k => `<td>${formatCell(row && typeof row === "object" ? row[k] : row)}</td>`).join("") : `<td>${formatCell(row)}</td>`) + "</tr>";
+  });
+  html += "</tbody></table>";
+  outputBody.innerHTML = html;
+}
+
+function formatCell(v) {
+  if (v === null || v === undefined) return '<span class="null-val">null</span>';
+  if (v === true)  return '<span class="bool-true">true</span>';
+  if (v === false) return '<span class="bool-false">false</span>';
+  if (typeof v === "object") return `<span style="color:var(--muted)">${escapeHtml(JSON.stringify(v))}</span>`;
+  return escapeHtml(String(v));
+}
+
+// ── JSON ──
+function renderJSON(result, stdout) {
+  let html = stdout ? stdoutBanner(stdout) : "";
+  html += `<div class="json-view">${syntaxHighlightJSON(JSON.stringify(result, null, 2))}</div>`;
+  outputBody.innerHTML = html;
+}
+
+// ── SQL ──
+function renderSQL(queries, n1) {
+  if (!queries.length) { outputBody.innerHTML = '<div class="empty-state"><div class="icon">&#128196;</div><div>No SQL queries captured.<br><small>Raw cursor queries may not appear here.</small></div></div>'; return; }
+  const totalTime = queries.reduce((s, q) => s + q.time_ms, 0).toFixed(2);
+  let html = `<div class="sql-summary">
+    <span class="sql-stat"><strong>${queries.length}</strong> quer${queries.length === 1 ? "y" : "ies"}</span>
+    <span class="sql-stat"><strong>${totalTime}ms</strong> total DB time</span>
+  </div>`;
+  if (n1) html += buildN1Banner(n1);
+  queries.forEach((q, i) => {
+    html += `<div class="sql-item"><div class="sql-item-header"><span class="sql-num">#${i+1}</span><span class="sql-time">${q.time_ms}ms</span></div><div class="sql-code">${escapeHtml(q.sql)}</div></div>`;
+  });
+  outputBody.innerHTML = html;
+}
+
+// ── N+1 banner (shared) ──
+function buildN1Banner(n1) {
+  let html = `<div class="n1-banner">
+    <div class="n1-title">⚠ N+1 Detected — ${n1.count} identical queries</div>
+    <div class="n1-body">${escapeHtml(n1.tip)}</div>`;
+  if (n1.example) {
+    html += `<div class="n1-query">${escapeHtml(n1.example)}</div>`;
+  }
+  if (n1.suggested_fix) {
+    html += `<div class="n1-fix">
+      <div class="n1-fix-label">Suggested fix:</div>
+      <div class="n1-fix-code">${escapeHtml(n1.suggested_fix)}</div>
+      <button class="n1-fix-copy" onclick="applyN1Fix(${JSON.stringify(n1.suggested_fix)})">Apply fix in editor</button>
+    </div>`;
+  }
+  html += `</div>`;
+  return html;
+}
+
+function applyN1Fix(code) {
+  editorA.setValue(code);
+  editorA.focus();
+}
+
+// ── Explain ──
+function renderExplain(hints, n1) {
+  if (!hints.length) { outputBody.innerHTML = '<div class="explain-empty">Run a query to see an explanation.</div>'; return; }
+  let html = "";
+  if (n1) html += buildN1Banner(n1);
+  hints.forEach(h => {
+    const isWarn = h.startsWith("Warning:");
+    html += `<div class="explain-item${isWarn ? " warn-item" : ""}"><span class="bullet">${isWarn ? "⚠" : "›"}</span><span>${escapeHtml(h)}</span></div>`;
+  });
+  outputBody.innerHTML = html;
+}
+
+// ── Compare ──
+function renderCompare(data) {
+  statusDot.className = (data.a.status === "ok" && data.b.status === "ok") ? "status-dot ok" : "status-dot err";
+  rowCountEl.textContent = "";
+  durationBadge.style.display = "none";
+
+  // Show SQL tab counts
+  const ac = data.a.sql?.length || 0, bc = data.b.sql?.length || 0;
+  document.getElementById("sqlTab").innerHTML = `SQL<span class="tab-badge">${ac}/${bc}</span>`;
+
+  if (activeTab === "table" || activeTab === "json") {
+    let html = '<div class="compare-label">Query A</div>';
+    if (data.a.error) html += `<div class="error-view"><span class="error-label">✖ Error</span>${escapeHtml(cleanError(data.a.error))}</div>`;
+    else if (activeTab === "json") html += `<div class="json-view">${syntaxHighlightJSON(JSON.stringify(data.a.result, null, 2))}</div>`;
+    else html += buildTableHtml(data.a.result, data.a.stdout);
+    html += '<div class="compare-label">Query B</div>';
+    if (data.b.error) html += `<div class="error-view"><span class="error-label">✖ Error</span>${escapeHtml(cleanError(data.b.error))}</div>`;
+    else if (activeTab === "json") html += `<div class="json-view">${syntaxHighlightJSON(JSON.stringify(data.b.result, null, 2))}</div>`;
+    else html += buildTableHtml(data.b.result, data.b.stdout);
+    outputBody.innerHTML = html;
+  } else if (activeTab === "sql") {
+    let html = '<div class="compare-label">Query A</div>';
+    html += buildSQLHtml(data.a.sql, data.a.n1_warning);
+    html += '<div class="compare-label">Query B</div>';
+    html += buildSQLHtml(data.b.sql, data.b.n1_warning);
+    // Comparison summary
+    const faster = data.a.duration_ms < data.b.duration_ms ? "A" : data.b.duration_ms < data.a.duration_ms ? "B" : null;
+    const fewerQ = ac < bc ? "A" : bc < ac ? "B" : null;
+    html += `<div class="compare-diff">
+      <div>⏱ A: <strong>${data.a.duration_ms}ms</strong> &nbsp; B: <strong>${data.b.duration_ms}ms</strong> &nbsp;
+        ${faster ? `<span class="${faster==="A"?"diff-better":"diff-worse"}">Query ${faster} is faster</span>` : '<span class="diff-same">Same speed</span>'}</div>
+      <div style="margin-top:4px">🔢 A: <strong>${ac} SQL</strong> &nbsp; B: <strong>${bc} SQL</strong> &nbsp;
+        ${fewerQ ? `<span class="${fewerQ==="A"?"diff-better":"diff-worse"}">Query ${fewerQ} uses fewer queries</span>` : '<span class="diff-same">Same query count</span>'}</div>
+    </div>`;
+    outputBody.innerHTML = html;
+  } else if (activeTab === "explain") {
+    let html = '<div class="compare-label">Query A</div>' + buildExplainHtml(data.a.explain, data.a.n1_warning);
+    html += '<div class="compare-label">Query B</div>' + buildExplainHtml(data.b.explain, data.b.n1_warning);
+    outputBody.innerHTML = html;
+  }
+}
+
+function buildTableHtml(result, stdout) {
+  if (!result) return "";
+  let html = stdout ? stdoutBanner(stdout) : "";
+  const rows = Array.isArray(result) ? result : [result];
+  if (!rows.length) return html + '<div style="padding:10px;color:var(--muted);font-size:.76rem">0 rows</div>';
+  const keys = [];
+  rows.forEach(r => { if (r && typeof r === "object") Object.keys(r).forEach(k => { if (!keys.includes(k)) keys.push(k); }); });
+  html += '<table class="result-table"><thead><tr>' + (keys.length ? keys : ["value"]).map(k => `<th>${escapeHtml(k)}</th>`).join("") + "</tr></thead><tbody>";
+  rows.forEach(row => { html += "<tr>" + (keys.length ? keys.map(k => `<td>${formatCell(row && typeof row === "object" ? row[k] : row)}</td>`).join("") : `<td>${formatCell(row)}</td>`) + "</tr>"; });
+  return html + "</tbody></table>";
+}
+
+function buildSQLHtml(queries, n1) {
+  if (!queries?.length) return '<div style="padding:10px;color:var(--muted);font-size:.74rem">No queries</div>';
+  let html = "";
+  if (n1) html += buildN1Banner(n1);
+  queries.forEach((q, i) => { html += `<div class="sql-item"><div class="sql-item-header"><span class="sql-num">#${i+1}</span><span class="sql-time">${q.time_ms}ms</span></div><div class="sql-code">${escapeHtml(q.sql)}</div></div>`; });
+  return html;
+}
+
+function buildExplainHtml(hints, n1) {
+  let html = "";
+  if (n1) html += buildN1Banner(n1);
+  (hints || []).forEach(h => { html += `<div class="explain-item${h.startsWith("Warning:")?" warn-item":""}"><span class="bullet">${h.startsWith("Warning:")?"⚠":"›"}</span><span>${escapeHtml(h)}</span></div>`; });
+  return html || '<div class="explain-empty">No hints.</div>';
+}
+
+// ── Helpers ──
+function stdoutBanner(text) { return `<div class="stdout-banner"><div class="stdout-label">stdout</div><div class="stdout-content">${escapeHtml(text)}</div></div>`; }
+
+function syntaxHighlightJSON(str) {
+  return str.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+    .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, m => {
+      if (/^"/.test(m)) return /:$/.test(m) ? `<span class="json-key">${m}</span>` : `<span class="json-str">${m}</span>`;
+      if (/true|false/.test(m)) return `<span class="json-bool">${m}</span>`;
+      if (/null/.test(m)) return `<span class="json-null">${m}</span>`;
+      return `<span class="json-num">${m}</span>`;
+    });
+}
+
+function escapeHtml(s) { return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+// ── Resize (output panel) ──
+const resizeHandle = document.getElementById("resizeHandle");
+const outputPanel  = document.getElementById("outputPanel");
+let isResizing = false;
+resizeHandle.addEventListener("mousedown", e => { isResizing = true; document.body.style.cursor = "col-resize"; document.body.style.userSelect = "none"; e.preventDefault(); });
+
+// ── Resize (sidebar) ──
+const sidebarResizeHandle = document.getElementById("sidebarResizeHandle");
+const sidebar = document.querySelector(".sidebar");
+let isSidebarResizing = false;
+sidebarResizeHandle.addEventListener("mousedown", e => { isSidebarResizing = true; document.body.style.cursor = "col-resize"; document.body.style.userSelect = "none"; e.preventDefault(); });
+
+document.addEventListener("mousemove", e => {
+  if (isResizing) {
+    const w = document.querySelector(".layout").getBoundingClientRect().right - e.clientX;
+    if (w > 300 && w < 900) outputPanel.style.width = w + "px";
+  }
+  if (isSidebarResizing) {
+    const w = e.clientX - document.querySelector(".layout").getBoundingClientRect().left;
+    if (w > 140 && w < 700) sidebar.style.width = w + "px";
+  }
+});
+document.addEventListener("mouseup", () => {
+  isResizing = false; isSidebarResizing = false;
+  document.body.style.cursor = ""; document.body.style.userSelect = "";
+});
+
+// ── Theme toggle ──
+const themeToggle = document.getElementById("themeToggle");
+const iconSun  = document.getElementById("iconSun");
+const iconMoon = document.getElementById("iconMoon");
+
+function applyTheme(light) {
+  document.body.classList.toggle("light", light);
+  iconSun.style.display  = light ? "none"  : "";
+  iconMoon.style.display = light ? ""      : "none";
+  // Switch CodeMirror theme
+  const theme = light ? "default" : "dracula";
+  if (editorA) editorA.setOption("theme", theme);
+  if (editorB) editorB.setOption("theme", theme);
+  localStorage.setItem("djorm_theme", light ? "light" : "dark");
+}
+
+themeToggle.addEventListener("click", () => {
+  applyTheme(!document.body.classList.contains("light"));
+});
+
+// Restore saved preference
+const savedTheme = localStorage.getItem("djorm_theme");
+if (savedTheme === "light") applyTheme(true);
+</script>
+
+<footer>
+  <span>Built with</span>
+  <span class="footer-heart">♥</span>
+  <span>using</span>
+  <a href="https://www.djangoproject.com/" target="_blank" rel="noopener">Django 5.2</a>
+  <span class="footer-sep">·</span>
+  <a href="https://codemirror.net/" target="_blank" rel="noopener">CodeMirror</a>
+  <span class="footer-sep">·</span>
+  <span>QueryLab — open source Django ORM playground</span>
+  <span class="footer-sep">·</span>
+  <a href="https://github.com/your-username/django-orm-playground" target="_blank" rel="noopener">GitHub</a>
+</footer>
+</body>
+</html>
