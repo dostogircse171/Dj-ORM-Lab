@@ -12,6 +12,7 @@ from django.conf import settings
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.http import require_POST
+from django.views.decorators.csrf import ensure_csrf_cookie
 from playground import models as playground_models
 from playground.models import (
     Category, Product, Customer, Order, OrderItem, Review, Tag,
@@ -904,6 +905,7 @@ def _run_in_thread(code: str, exec_globals: dict, timeout: int):
 
 # ── Views ─────────────────────────────────────────────────────────────────────
 
+@ensure_csrf_cookie
 def index(request):
     context = {
         "examples": EXAMPLE_QUERIES,
