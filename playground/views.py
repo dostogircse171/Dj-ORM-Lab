@@ -287,6 +287,11 @@ _BLOCKED_TOKENS = [
     "auth_user", "auth_group", "auth_permission",
     "django_session", "django_content_type", "django_migrations",
     "django_admin_log",
+    # DDL — SQLite doesn't fully roll back schema changes
+    "ALTER TABLE", "ALTER table", "alter table",
+    "CREATE TABLE", "CREATE table", "create table",
+    "DROP TABLE", "DROP table", "drop table",
+    "DROP INDEX", "drop index",
 ]
 
 
